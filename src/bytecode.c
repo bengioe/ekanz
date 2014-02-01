@@ -43,33 +43,57 @@ static void strdict_setn(strdict_node* d, char* k, int64_t len, int64_t v){
   d->value = v;
 }
 
+typedef struct scope_t {
+  strdict_node* dict;
+  int64_t frame_size;
+} scope_t;
+
+static scope_t* scope_new(){
+  scope_t* s = malloc(sizeof(scope_t));
+  s->dict = strdict_new();
+  s->frame_size = 0;
+  return s;
+}
+
+static int64_t scope_get(scope_t* s, astnp n, int64_t* to){
+  return strdict_getn(s->dict, n->tokstr, n->toklen, to);
+}
+
+static void scope_set(scope_t* s, astnp n, int64_t v){
+  return strdict_setn(s->dict, n->tokstr, n->toklen, v);
+}
+
+static void scope_setn(scope_t* s, char* k, int len, int64_t v){
+  return strdict_setn(s->dict, k, len, v);
+}
+
 //////////////////////////
 
-static void bc_pushl(bcp bc, int64_t l){ 
-  *bc->data++ = PUSH; *(int64_t*)bc->data = l; bc->data += 8; }
-static void bc_pushfrom(bcp bc, int64_t l){ 
-  *bc->data++ = PUSH_FROM; *(int64_t*)bc->data = l; bc->data += 8; }
-static void bc_popinto(bcp bc, int64_t l){ 
-  *bc->data++ = POP_INTO; *(int64_t*)bc->data = l; bc->data += 8; }
+static void bc_pushl(bcp bc, int32_t l){ 
+  *bc->data++ = PUSH; *(int64_t*)bc->data = l; bc->data += 4; }
+static void bc_pushfrom(bcp bc, int32_t l){ 
+  *bc->data++ = PUSH_FROM; *(int32_t*)bc->data = l; bc->data += 4; }
+static void bc_popinto(bcp bc, int32_t l){ 
+  *bc->data++ = POP_INTO; *(int32_t*)bc->data = l; bc->data += 4; }
+static void bc_popn(bcp bc, int32_t l){ 
+  *bc->data++ = POPN; *(int32_t*)bc->data = l; bc->data += 4; }
 static void bc_add(bcp bc){ 
   *bc->data++ = ADD;}
 static void bc_call(bcp bc){ 
   *bc->data++ = CALL;}
+static void bc_newframe(bcp bc){
+  *bc->data++ = NEW_FRAME;}
 static void bc_return(bcp bc){
   *bc->data++ = RETURN;}
-
-
 
 //////////////////////////
 
 
 
-static void bc_block(bcp bc, astnp node, strdict_node* globals);
-static void bc_expression(bcp bc, astnp node, strdict_node* globals);
+static void bc_block(bcp bc, astnp node, scope_t* globals);
+static void bc_expression(bcp bc, astnp node, scope_t* globals);
 
-static void bc_block(bcp bc, astnp node, strdict_node* globals){
-  int64_t local_scope_stack_ptr = 0;
-  int64_t stack_size = 0;
+static void bc_block(bcp bc, astnp node, scope_t* globals){
   while (node != NULL){
     astnp decl = node->left;
     switch(decl->type){
@@ -77,33 +101,33 @@ static void bc_block(bcp bc, astnp node, strdict_node* globals){
       { 
 	astnp l = decl->left;
 	int64_t pos;
-	if (!scopechain_get(scopes, l, &pos)){
-	  pos = local_scope_stack_ptr++;
-	  stack_size++;
-	  scopechain_set(scopes, l, pos);
+	if (!scope_get(globals, l, &pos)){
+	  pos = globals->frame_size++;
+	  scope_set(globals, l, pos);
 	  printf("push None\n");
 	  bc_pushl(bc, NONE_CST_VALUE);
 	  printf("    new scope variable %.*s(%ld)\n",l->toklen, l->tokstr, pos);
 	}
-	bc_expression(bc, decl->right, scopes);
-	bc_popinto(bc, pos + stack_size);
-	stack_size--;
+	bc_expression(bc, decl->right, globals);
+	bc_popinto(bc, pos);
 	printf("pop into %ld\n", pos);
 	break;
       }
     case EK_AST_CALL:
-      bc_expression(bc, decl, scopes);
+      bc_expression(bc, decl, globals);
       break;
     default:
       printf("Error, Unknown AST node %d\n",node->type);
     }
     node = node->right;
   }
+  printf("popn %d\n", globals->frame_size);
+  bc_popn(bc, globals->frame_size);
+  printf("ret\n");
   bc_return(bc);
-  scopechain_popscope(scopes);
 }
 
-static void bc_expression(bcp bc, astnp node, scopechain_t* scopes){
+static void bc_expression(bcp bc, astnp node, scope_t* globals){
   switch(node->type){
   case EK_AST_CSTINT:{
     int64_t v = atoi(node->tokstr);
@@ -113,7 +137,7 @@ static void bc_expression(bcp bc, astnp node, scopechain_t* scopes){
   }
   case EK_AST_VARNAME:{
     int64_t posx = -1;
-    if (!scopechain_get(scopes, node, &posx)){
+    if (!scope_get(globals, node, &posx)){
       printf("NameError, %.*s is not defined\n", node->toklen, node->tokstr);
     }
     bc_pushfrom(bc, posx);
@@ -121,14 +145,14 @@ static void bc_expression(bcp bc, astnp node, scopechain_t* scopes){
     break;
   }
   case EK_AST_ADD:
-    bc_expression(bc, node->left, scopes);
-    bc_expression(bc, node->right, scopes);
+    bc_expression(bc, node->left, globals);
+    bc_expression(bc, node->right, globals);
     bc_add(bc);
     printf("add\n");
     break;
   case EK_AST_CALL:
-    bc_expression(bc, node->left, scopes);
-    bc_expression(bc, node->right, scopes);
+    bc_expression(bc, node->left, globals);
+    bc_expression(bc, node->right, globals);
     bc_call(bc);
     printf("call\n");
     break;
@@ -146,10 +170,10 @@ ek_bytecode* ek_bc_compile_ast(astnp root){
   bc->size = 1024;
   bc->data = malloc(1024);
   bc->startptr = bc->data;
-  scopechain_t* scopes = scopechain_new();
-  scopes = scopechain_pushscope(scopes);
-  scopechain_setn(scopes, "print", 5, -(int64_t)&native_print);
-  bc_block(bc, root, scopes);
+  scope_t* globals = scope_new();
+  scope_setn(globals, "print", 5, -(int64_t)&native_print);
+  bc_newframe(bc);
+  bc_block(bc, root, globals);
   return bc;
 }
 

@@ -7,11 +7,13 @@
 enum ByteCodeOps {
   PUSH = 32,
   POP,
+  POPN,
   PUSH_FROM,
   POP_INTO,
   ADD,
   CALL,
   RETURN,
+  NEW_FRAME,
 };
 
 #define NONE_CST_VALUE 1

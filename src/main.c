@@ -9,6 +9,6 @@ int main(int argc, char** argv){
   ek_parse_print_ast(ast);
   ek_bytecode* bc = ek_bc_compile_ast(ast);
   
-  //ek_native_compile_bc(bc);
+  ek_native_compile_bc(bc);
   return 0;
 }
