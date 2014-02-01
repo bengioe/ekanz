@@ -242,8 +242,23 @@ void ek_parse_print_ast(nodep root){
 
 /**
    The grammar for Ekanz is implicitly inscribed in this code, and
-   explicitely (as much as possible) right here:
+   explicitely (as much as possible) right here: */
+/* block: declaration*
+   declaration : ifstmt | assignment
+   ifstmt : ('if' expression ':' '\n' block)
+          | ('if' expression ':' '\n' block 
+	     (('elif'|'else' 'if') expression ':' '\n' block)* 
+	     (else: '\n' block)? ) 
+   assignment : expression/A '=' expression | expression
+       assert !isLitteral(A)
+   expression : addition 
+   addition : meta_attribute '+' addition | meta_attribute
+   meta_attribute: call '.' VARIABLE | call 
+   call : attribute ( call_arglist ) | attribute
+   attribute: value '.' VARIABLE | value
+   value : VARIABLE | NUM_CST | STR_CST 
 */
+
 
 static nodep p_block(parse_state*);
 /* block: declaration **/
@@ -262,13 +277,11 @@ static nodep p_assignment(parse_state*);
 static nodep p_expression(parse_state*);
 /* expression : addition */
 static nodep p_addition(parse_state*);
-/* addition : meta_attribute '+' addition | meta_attribute*/
-static nodep p_meta_attribute(parse_state*);
-/* meta_attribute: call '.' VARIABLE | call */
-static nodep p_call(parse_state*);
-/* call : attribute ( call_arglist ) | attribute */
-static nodep p_attribute(parse_state*);
-/* attribute: value '.' VARIABLE | value */
+/* addition : power '+' addition | power*/
+static nodep p_power(parse_state*);
+/* power: value trailer* */
+static nodep p_trailer(parse_state*);
+/* trailer :  '(' expression ')' | '.' VARIABLE */
 static nodep p_value(parse_state*);
 /* value : VARIABLE | NUM_CST | STR_CST */
 
@@ -470,7 +483,7 @@ static nodep p_expression(parse_state* S){
 
 static nodep p_addition(parse_state* S){
   nodep root;
-  if ((root = p_meta_attribute(S)) == NULL){
+  if ((root = p_power(S)) == NULL){
     //printf("Error, p_call returned NULL in p_add\n");
     return NULL;
   }
@@ -483,64 +496,31 @@ static nodep p_addition(parse_state* S){
   return root;
 }
 
-/*
-  meta attributes are like attributes but for calls or indexations,
-  that are put here to keep the grammar LL(1)
- */
-static nodep p_meta_attribute(parse_state* S){
+static nodep p_power(parse_state* S){
   nodep root;
-  if ((root = p_call(S)) == NULL){
+  if ((root = p_value(S)) == NULL){
     return NULL;
   }
-  if (P_accept(S, '.')){
-    if (P_see(S, EK_AST_VARNAME)){
-      
-      nodep str = new_nodep();
-      char* s = S->strptr;
-      while (P_seevalid_id(S)){
-	S->strptr++;
-      }
-      str->toklen = S->strptr-s;
-      str->tokstr = s;
-      str->type = EK_AST_VARNAME;
-     
-      nodep right = str;
-      nodep left = root;
-      root = new_nodeplrt(left, right, EK_AST_DOT); 
-    }else{
-      printf("Error, found . with no valid attribute\n");
-      return NULL;
-    }
+  nodep trailer;
+  while ((trailer = p_trailer(S)) != NULL){
+    trailer->left = root;
+    root = trailer;
   }
   return root;
 }
 
-static nodep p_call(parse_state* S){
-  nodep root;
-  if ((root = p_attribute(S)) == NULL){
-    //printf("Error, p_value returned NULL in p_call\n");
-    return NULL;
-  }
+static nodep p_trailer(parse_state* S){
+  nodep root = NULL;
   if (P_accept(S, '(')){
-    nodep left = root;
     //printf("Got ( %.*s\n",3,S->strptr);
     nodep right = p_expression(S);
-    root = new_nodeplr(left, right);
-    root->type = EK_AST_CALL;
+    root = new_nodeplrt(NULL, right,EK_AST_CALL);
     //printf("looking for ) %.*s\n",3,S->strptr);
     if (!P_accept(S, ')')){
       printf("Error, missing left ) in p_call\n");
     }
   }
-  return root;
-}
-
-static nodep p_attribute(parse_state* S){
-  nodep root;
-  if ((root = p_value(S)) == NULL){
-    return NULL;
-  }
-  if (P_accept(S, '.')){
+  else if (P_accept(S, '.')){
     if (P_see(S, EK_AST_VARNAME)){
       
       nodep str = new_nodep();
@@ -553,8 +533,7 @@ static nodep p_attribute(parse_state* S){
       str->type = EK_AST_VARNAME;
      
       nodep right = str;
-      nodep left = root;
-      root = new_nodeplrt(left, right, EK_AST_DOT); 
+      root = new_nodeplrt(NULL, right, EK_AST_DOT); 
     }else{
       printf("Error, found . with no valid attribute\n");
       return NULL;
@@ -618,3 +597,33 @@ static nodep p_value(parse_state* S){
   //printf("No suitable p_value found\n");
   return NULL;
 }
+
+/*
+static nodep p_attribute(parse_state* S){
+  nodep root;
+  if ((root = p_value(S)) == NULL){
+    return NULL;
+  }
+  if (P_accept(S, '.')){
+    if (P_see(S, EK_AST_VARNAME)){
+      
+      nodep str = new_nodep();
+      char* s = S->strptr;
+      while (P_seevalid_id(S)){
+	S->strptr++;
+      }
+      str->toklen = S->strptr-s;
+      str->tokstr = s;
+      str->type = EK_AST_VARNAME;
+     
+      nodep right = str;
+      nodep left = root;
+      root = new_nodeplrt(left, right, EK_AST_DOT); 
+    }else{
+      printf("Error, found . with no valid attribute\n");
+      return NULL;
+    }
+  }
+  return root;
+}
+*/

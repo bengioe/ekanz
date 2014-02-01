@@ -6,9 +6,9 @@ int main(int argc, char** argv){
   char* file_data = ek_raw_readfile("test.py");
   //printf("read: %s\n", file_data);
   ek_ast_node* ast = ek_parse_text(file_data, "test.py");
-  //ek_parse_print_ast(ast);
+  ek_parse_print_ast(ast);
   ek_bytecode* bc = ek_bc_compile_ast(ast);
   
-  ek_native_compile_bc(bc);
+  //ek_native_compile_bc(bc);
   return 0;
 }
