@@ -33,7 +33,7 @@ int64_t ek_native_compile_bc(ek_bytecode* bc){
       int32_t v = *(int32_t*)p;
       p+=4;
       *code++ = 0x48; *code++ = 0x8b; *code++ = 0x42;
-      *code++ = (v+1) << 3;
+      *code++ = (v-1) << 3;
       // push %rax
       *code++ = 0x50; break;}
     case POP_INTO:{
@@ -43,7 +43,7 @@ int64_t ek_native_compile_bc(ek_bytecode* bc){
       int32_t v = *(int32_t*)p;
       p+=4;
       *code++ = 0x48; *code++ = 0x89;*code++ = 0x42;
-      *code++ = (v+1)<<3;
+      *code++ = (v-1)<<3;
       printf("pop into %d\n", v);
       break;}
     case POPN:{
