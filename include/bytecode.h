@@ -14,9 +14,12 @@ enum ByteCodeOps {
   CALL,
   RETURN,
   NEW_FRAME,
+  LABEL,
+  BRANCH,
+  CONDBRANCH,
 };
 
-#define NONE_CST_VALUE 1
+#define NONE_CST_VALUE 42
 
 typedef struct ek_bytecode{
   char* data;
@@ -26,5 +29,6 @@ typedef struct ek_bytecode{
 
 
 ek_bytecode* ek_bc_compile_ast(ek_ast_node* ast);
+void ek_bc_print(ek_bytecode*);
 
 #endif

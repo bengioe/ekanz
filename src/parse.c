@@ -385,10 +385,10 @@ static nodep p_ifstmt(parse_state* S){
   /*
     if nodes are structured as follows:
     IF L-> condition
-       R-> IFNODE L-> IF L-> condition
-                         R-> IFNODE L-> ...
-	                            R-> block
-	          R-> block
+       R-> IFNODE L-> block
+                  R-> IF L-> condition
+                         R-> IFNODE L-> block
+	                            R-> ...
       at one point in the tree, the odd left node will be (nil) or an ELSE
       ELSE L-> (nil)
            R-> block
