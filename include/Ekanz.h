@@ -7,5 +7,6 @@
 
 #include "parse.h"
 #include "bytecode.h"
+#include "cfg.h"
 
 char* ek_raw_readfile(char* filename);
