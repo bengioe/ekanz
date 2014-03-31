@@ -157,7 +157,15 @@ static int P_see(parse_state* S, int type){
     if (*s == 'e' && *(s+1)=='l' && *(s+2)=='i' && *(s+3)=='f' && *(s+4)==' '){
       return 4;
     }
-  }
+  } else if (type == EK_AST_DEF){
+    if (*s == 'd' && *(s+1)=='e' && *(s+2)=='f' && *(s+3)==' '){
+      return 3;
+    }
+  } else if (type == EK_AST_RETURN){
+    if (*s == 'r' && *(s+1)=='e' && *(s+2)=='t' && *(s+3)=='u' && *(s+4)=='r' && *(s+5)=='n' && *(s+6)==' '){
+      return 6;
+    }
+  } 
   return 0;
 }
 
@@ -203,6 +211,8 @@ const char* ek_ast_typenames[] = {
   "elif",
   "assign", // 280
   "block_element", 
+  "def",
+  "return",
   "invalid_",
 };
 
@@ -244,7 +254,7 @@ void ek_parse_print_ast(nodep root){
    The grammar for Ekanz is implicitly inscribed in this code, and
    explicitely (as much as possible) right here: */
 /* block: declaration*
-   declaration : ifstmt | assignment
+   declaration : ifstmt | funcdef | assignment | retstmt
    ifstmt : ('if' expression ':' '\n' block)
           | ('if' expression ':' '\n' block 
 	     (('elif'|'else' 'if') expression ':' '\n' block)* 
@@ -254,7 +264,7 @@ void ek_parse_print_ast(nodep root){
    expression : addition 
    addition : meta_attribute '+' addition | meta_attribute
    meta_attribute: call '.' VARIABLE | call 
-   call : attribute ( call_arglist ) | attribute
+   call : attribute '(' call_arglist ')' | attribute
    attribute: value '.' VARIABLE | value
    value : VARIABLE | NUM_CST | STR_CST 
 */
@@ -263,13 +273,16 @@ void ek_parse_print_ast(nodep root){
 static nodep p_block(parse_state*);
 /* block: declaration **/
 static nodep p_declaration(parse_state*);
-/* declaration : definition | ifstmt | assignment*/
-static nodep p_definition(parse_state*);
+/* declaration : funcdef | ifstmt | assignment | retstmt*/
+static nodep p_funcdef(parse_state*);
+/* funcdef : 'def' VARIABLE parameters ':' block */
 static nodep p_ifstmt(parse_state*);
 /* ifstmt : ('if' expression : '\n' block)
           | ('if' expression : '\n' block 
 	     (('elif'|'else' 'if') expression: '\n' block)* 
 	     (else: '\n' block)?) */
+static nodep p_retstmt(parse_state*);
+/* retstmt : 'return' expression */
 static nodep p_assignment(parse_state*);
 /* assignment : expression/A '=' expression | expression
    assert !isLitteral(A)
@@ -284,7 +297,7 @@ static nodep p_trailer(parse_state*);
 /* trailer :  '(' expression ')' | '.' VARIABLE */
 static nodep p_value(parse_state*);
 /* value : VARIABLE | NUM_CST | STR_CST */
-
+static nodep p_VARIABLE(parse_state*);
 
 
 nodep ek_parse_text(char* text, char* filename){
@@ -359,10 +372,13 @@ static nodep p_block(parse_state* S){
 static nodep p_declaration(parse_state* S){
   nodep root;
   //printf("declaration: %.*s\n",line_length(S->strptr), S->strptr);
-  if ((root = p_definition(S)) != NULL){
-    printf("097812823\n");
+  if ((root = p_funcdef(S)) != NULL){
+    return root;
   }
   else if ((root = p_ifstmt(S)) != NULL){
+    return root;
+  }
+  else if ((root = p_retstmt(S)) != NULL){
     return root;
   }
   else if ((root = p_assignment(S)) != NULL){
@@ -376,8 +392,38 @@ static nodep p_declaration(parse_state* S){
   return NULL;
 }
 
-static nodep p_definition(parse_state* S){
-  return NULL;
+static nodep p_funcdef(parse_state* S){
+  /* 
+     def nodes are structured as follows
+     DEF L-> DEF L-> name
+                 R-> argname // here should be a list of arguments
+	 R-> block
+  */
+  nodep root = NULL;
+  if (P_accept(S, EK_AST_DEF)){
+    nodep name = p_VARIABLE(S);
+    if (!name){
+      parse_error(S, "Expected name after 'def'");
+    }
+    if (!P_accept(S, '(')){
+      parse_error(S, "Expected parenthesis after 'def ...'");
+    }
+    nodep argname = p_VARIABLE(S);
+    if (!P_accept(S, ')')){
+      parse_error(S, "Expected closing parenthesis after 'def ...'");
+    }
+    if (!P_accept(S, ':')){
+      parse_error(S, "Expected colon after 'def ... (...)'");
+    }
+    if (!P_accept(S, '\n')){
+      parse_error(S, "Expected newline after colon ':'");
+    }
+    nodep block = p_block(S);
+    root = new_nodeplrt(new_nodeplrt(name, argname, EK_AST_DEF),
+			block,
+			EK_AST_DEF);
+  }
+  return root;
 }
 
 
@@ -389,7 +435,7 @@ static nodep p_ifstmt(parse_state* S){
                   R-> IF L-> condition
                          R-> IFNODE L-> block
 	                            R-> ...
-      at one point in the tree, the odd left node will be (nil) or an ELSE
+      at one point in the tree, the odd right node will be (nil) or an ELSE
       ELSE L-> (nil)
            R-> block
      */
@@ -464,6 +510,20 @@ static nodep p_ifstmt(parse_state* S){
   return root;
 }
 
+
+static nodep p_retstmt(parse_state* S){
+  if (P_accept(S, EK_AST_RETURN)){
+    nodep e = p_expression(S);
+    printf("return node\n");
+    ek_parse_print_ast(e);
+    if (!e){
+      parse_error(S, "Expected expression after return statement");
+    }
+    return new_nodeplrt(e, NULL, EK_AST_RETURN);
+  }
+  return NULL;
+}
+
 static nodep p_assignment(parse_state* S){
   nodep root;
   if ((root = p_expression(S)) == NULL){
@@ -521,23 +581,12 @@ static nodep p_trailer(parse_state* S){
     }
   }
   else if (P_accept(S, '.')){
-    if (P_see(S, EK_AST_VARNAME)){
-      
-      nodep str = new_nodep();
-      char* s = S->strptr;
-      while (P_seevalid_id(S)){
-	S->strptr++;
-      }
-      str->toklen = S->strptr-s;
-      str->tokstr = s;
-      str->type = EK_AST_VARNAME;
-     
-      nodep right = str;
-      root = new_nodeplrt(NULL, right, EK_AST_DOT); 
-    }else{
+    nodep str = p_VARIABLE(S);
+    if (!str){
       printf("Error, found . with no valid attribute\n");
       return NULL;
     }
+    root = new_nodeplrt(NULL, str, EK_AST_DOT);
   }
   return root;
 }
@@ -555,15 +604,10 @@ static nodep p_value(parse_state* S){
       }
       s++;
     }
-    str->toklen = s-S->strptr-1;
+    str->toklen = s-S->strptr;
     str->tokstr = S->strptr;
     str->type = EK_AST_CSTSTR;
     S->strptr = s+1;
-    /*
-    printf("Str const:");
-    printnodep(str);
-    puts("");
-    printf("Left %.*s\n",3,S->strptr);*/
     return str;
   }else if (P_see(S, EK_AST_VARNAME)){
     
@@ -597,6 +641,23 @@ static nodep p_value(parse_state* S){
   //printf("No suitable p_value found\n");
   return NULL;
 }
+
+ static nodep p_VARIABLE(parse_state* S){
+
+    if (P_see(S, EK_AST_VARNAME)){
+      
+      nodep str = new_nodep();
+      char* s = S->strptr;
+      while (P_seevalid_id(S)){
+	S->strptr++;
+      }
+      str->toklen = S->strptr-s;
+      str->tokstr = s;
+      str->type = EK_AST_VARNAME;
+      return str;
+    }
+    return NULL;
+ }
 
 /*
 static nodep p_attribute(parse_state* S){

@@ -1,4 +1,4 @@
-SRC := bytecode.c file_io.c main.c native.c parse.c cfg.c
+SRC := bytecode.c file_io.c main.c native.c parse.c vm.c obj.c
 OBJ := $(SRC:%.c=.obj.%.o)
 
 IFLAGS := -I../include/
