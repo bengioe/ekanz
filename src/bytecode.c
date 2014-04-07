@@ -87,6 +87,8 @@ static void bc_popn(bcp bc, int32_t l){
   *bc->data++ = POPN; *(int32_t*)bc->data = l; bc->data += 4; }
 static void bc_add(bcp bc){ 
   *bc->data++ = ADD;}
+static void bc_lessthan(bcp bc){ 
+  *bc->data++ = LESSTHAN;}
 static void bc_call(bcp bc){ 
   *bc->data++ = CALL;}
 static void bc_newframe(bcp bc){
@@ -106,6 +108,12 @@ static int64_t bc_condbranch(bcp bc, int64_t truelabel, int64_t falselabel){
 static int64_t bc_branch(bcp bc, int64_t label){
   *bc->data++ = BRANCH;
   *(int32_t*)bc->data = label; bc->data += 4;
+  *(int32_t*)bc->data = 0; bc->data += 4;
+  return (int64_t)bc->data - 4;} 
+static int64_t bc_backwardsbranch(bcp bc, int64_t label){
+  *bc->data++ = BRANCH;
+  int32_t id = *((int32_t*)label-1);
+  *(int32_t*)bc->data = id; bc->data += 4;
   *(int32_t*)bc->data = 0; bc->data += 4;
   return (int64_t)bc->data - 4;} 
 static void bc_label(bcp bc, int64_t* label){
@@ -183,6 +191,7 @@ static void find_and_push_locals(bcp bc, astnp root, scope_t* globals, scope_t* 
     find_and_push_locals(bc,root->right->left, globals, locals);
     find_and_push_locals(bc,root->right->right, globals, locals);
     break;
+  case EK_AST_WHILE:
   case EK_AST_ELSE:
     find_and_push_locals(bc,root->right, globals, locals);
     break;    
@@ -192,22 +201,21 @@ static void find_and_push_locals(bcp bc, astnp root, scope_t* globals, scope_t* 
     if (!scope_get(locals, l, &pos)){// && !scope_get(globals, l, &pos)){
       pos = locals->frame_size++;
       scope_set(locals, l, pos);
-      printf("push None %p\n",ek_NoneType);
+      //printf("push None %p\n",ek_NoneType);
       bc_push(bc, 0, ek_NoneType);
-      printf("new scope variable %.*s(%ld)\n",l->toklen, l->tokstr, pos);
+      //printf("new scope variable %.*s(%ld)\n",l->toklen, l->tokstr, pos);
     }
     break;
   }
   case EK_AST_DEF:{
     astnp l = root->left->left;
-    printf("DEF on %p\n",l);
     int64_t pos;
     if (!scope_get(locals, l, &pos)){// && !scope_get(locals, l, &pos)){
       pos = locals->frame_size++;
       scope_set(locals, l, pos);
       //printf("push None\n");
       bc_push(bc, 0, ek_NoneType);
-      printf("new scope variable %.*s(%ld)\n",l->toklen, l->tokstr, pos);
+      //printf("new scope variable %.*s(%ld)\n",l->toklen, l->tokstr, pos);
     }
     break;
   }
@@ -254,6 +262,7 @@ static void bc_block(bcp bc, astnp node, scope_t* globals, scope_t* locals){
       }
     case EK_AST_CALL:
       bc_expression(bc, decl, globals, locals);
+      bc_popn(bc, 1); // pop the unused result of the call (remember we are at bc_block level)
       break;
     case EK_AST_IF:{
       // evaluate the condition
@@ -277,6 +286,23 @@ static void bc_block(bcp bc, astnp node, scope_t* globals, scope_t* locals){
       bc_setcondmarker(bc, ifelsemarker, iflabel, elselabel);
       bc_setmarker(bc, endmarker, endlabel);
       bc_setmarker(bc, elseendmarker, endlabel);
+      break;
+    }
+    case EK_AST_WHILE:{
+      int64_t startlabel = bc_genlabel(bc);
+      int64_t blocklabel = bc_genlabel(bc);
+      int64_t endlabel = bc_genlabel(bc);
+      bc_label(bc, &startlabel);
+      // evaluate the condition
+      bc_expression(bc, decl->left, globals, locals);
+      int64_t condmarker = bc_condbranch(bc, blocklabel, endlabel);
+      bc_label(bc, &blocklabel);
+      // execute the body on True-ish
+      bc_block(bc, decl->right, globals, locals);
+      int64_t startmarker = bc_backwardsbranch(bc, startlabel);
+      bc_label(bc, &endlabel);
+      bc_setcondmarker(bc, condmarker, blocklabel, endlabel);
+      bc_setmarker(bc, startmarker, startlabel);
       break;
     }
     case EK_AST_DEF:{
@@ -356,6 +382,12 @@ static void bc_expression(bcp bc, astnp node, scope_t* globals, scope_t* locals)
     bc_add(bc);
     //printf("add\n");
     break;
+  case EK_AST_LESS:
+    bc_expression(bc, node->left, globals, locals);
+    bc_expression(bc, node->right, globals, locals);
+    bc_lessthan(bc);
+    //printf("add\n");
+    break;
   case EK_AST_CALL:
     // evaluate arguments
     bc_expression(bc, node->right, globals, locals);
@@ -386,6 +418,7 @@ static ek_bytecode* bc_function(bcp bc, astnp root, scope_t* globals, scope_t* l
   //bc_popn(bc, locals->frame_size);
   bc_return(bc, locals->frame_size);
 }
+
 /*
 void native_print(int64_t arg,ek_type* argt,int64_t* x,ek_type** y){
   if (argt == ek_IntType){
@@ -424,7 +457,7 @@ ek_bytecode* ek_bc_compile_ast(astnp root){
   find_and_push_locals(bc, root, globals, globals);
   bc_block(bc, root, globals, globals);
   //printf("popn %d\n", globals->frame_size);
-  bc_popn(bc, globals->frame_size);
+  //bc_popn(bc, globals->frame_size);
   //printf("ret\n");
   bc_return(bc, globals->frame_size);
   return bc;
@@ -454,6 +487,8 @@ void ek_bc_print(ek_bytecode* bc){
       printf("pop into global %d\n",*(int*)p); p+=4; break;
     case ADD:
       printf("add\n"); break;
+    case LESSTHAN:
+      printf("lessthan\n"); break;
     case CALL:
       printf("call\n"); break;
     case RETURN:

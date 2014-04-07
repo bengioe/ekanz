@@ -161,6 +161,10 @@ static int P_see(parse_state* S, int type){
     if (*s == 'd' && *(s+1)=='e' && *(s+2)=='f' && *(s+3)==' '){
       return 3;
     }
+  } else if (type == EK_AST_WHILE){
+    if (*s == 'w' && *(s+1)=='h' && *(s+2)=='i' && *(s+3)=='l' && *(s+4)=='e' && *(s+5)==' '){
+      return 5;
+    }
   } else if (type == EK_AST_RETURN){
     if (*s == 'r' && *(s+1)=='e' && *(s+2)=='t' && *(s+3)=='u' && *(s+4)=='r' && *(s+5)=='n' && *(s+6)==' '){
       return 6;
@@ -213,6 +217,8 @@ const char* ek_ast_typenames[] = {
   "block_element", 
   "def",
   "return",
+  "while",
+  "<",
   "invalid_",
 };
 
@@ -273,9 +279,11 @@ void ek_parse_print_ast(nodep root){
 static nodep p_block(parse_state*);
 /* block: declaration **/
 static nodep p_declaration(parse_state*);
-/* declaration : funcdef | ifstmt | assignment | retstmt*/
+/* declaration : funcdef | ifstmt | assignment | whilestmt | retstmt*/
 static nodep p_funcdef(parse_state*);
 /* funcdef : 'def' VARIABLE parameters ':' block */
+static nodep p_whilestmt(parse_state*);
+/* whilestmt: 'while expression : '\n' block */
 static nodep p_ifstmt(parse_state*);
 /* ifstmt : ('if' expression : '\n' block)
           | ('if' expression : '\n' block 
@@ -378,6 +386,9 @@ static nodep p_declaration(parse_state* S){
   else if ((root = p_ifstmt(S)) != NULL){
     return root;
   }
+  else if ((root = p_whilestmt(S)) != NULL){
+    return root;
+  }
   else if ((root = p_retstmt(S)) != NULL){
     return root;
   }
@@ -422,6 +433,32 @@ static nodep p_funcdef(parse_state* S){
     root = new_nodeplrt(new_nodeplrt(name, argname, EK_AST_DEF),
 			block,
 			EK_AST_DEF);
+  }
+  return root;
+}
+
+static nodep p_whilestmt(parse_state* S){
+  /* 
+     while nodes are structured as follows
+     WHILE L-> COND 
+           R-> block
+  */
+  nodep root = NULL;
+  if (P_accept(S, EK_AST_WHILE)){
+    nodep expr = p_expression(S);
+    if (!expr){
+      parse_error(S, "Expected expression after 'while'");
+    }
+    if (!P_accept(S, ':')){
+      parse_error(S, "Expected colon after 'while ...'");
+    }
+    if (!P_accept(S, '\n')){
+      parse_error(S, "Expected newline after colon ':'");
+    }
+    nodep block = p_block(S);
+    root = new_nodeplrt(expr,
+			block,
+			EK_AST_WHILE);
   }
   return root;
 }
@@ -514,8 +551,8 @@ static nodep p_ifstmt(parse_state* S){
 static nodep p_retstmt(parse_state* S){
   if (P_accept(S, EK_AST_RETURN)){
     nodep e = p_expression(S);
-    printf("return node\n");
-    ek_parse_print_ast(e);
+    //printf("return node\n");
+    //ek_parse_print_ast(e);
     if (!e){
       parse_error(S, "Expected expression after return statement");
     }
@@ -548,10 +585,14 @@ static nodep p_addition(parse_state* S){
     return NULL;
   }
   if (P_accept(S,'+')){
-    //printf("+\n");
     nodep right = p_addition(S);
     nodep left = root;
     root = new_nodeplrt(left, right, EK_AST_ADD);
+  }
+  else if (P_accept(S,'<')){
+    nodep right = p_addition(S);
+    nodep left = root;
+    root = new_nodeplrt(left, right, EK_AST_LESS);
   }
   return root;
 }

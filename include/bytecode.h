@@ -13,7 +13,8 @@ enum ByteCodeOps {
   POP_INTO_LOCAL,
   POP_INTO_GLOBAL,
   ADD,
-  CALL, // 40
+  LESSTHAN, // 40
+  CALL,
   RETURN, 
   NEW_FRAME, 
   LABEL,

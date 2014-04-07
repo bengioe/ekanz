@@ -16,6 +16,8 @@
 #define EK_AST_BLOCK_NODE 280
 #define EK_AST_DEF 281
 #define EK_AST_RETURN 282
+#define EK_AST_WHILE 283
+#define EK_AST_LESS 284
 
 typedef struct ek_ast_node{
   char* tokstr;

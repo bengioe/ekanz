@@ -95,7 +95,7 @@ ek_type* ek_type_derive(ek_type* t, char* s, long l){
     newt->map[h] = cnt++;
     i = i->next;
   }
-  printf("new type (%d entries, map size is %d)\n", newt->nentries, map_size);
+  //printf("new type (%d entries, map size is %d)\n", newt->nentries, map_size);
   return newt;
 }
 
