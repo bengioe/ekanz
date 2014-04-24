@@ -15,7 +15,7 @@ typedef struct scopeItem{
   uint32_t scopepos;
 } scoperef;
 
-class FlagPass{
+class FirstPass{
 public:
 
   std::map<std::string, scopeItem>* globals;
@@ -28,7 +28,7 @@ public:
   bool verbose = false;
   
 
-  FlagPass(anp r){
+  FirstPass(anp r){
     root = r;
     globals = new std::map<std::string, scopeItem>();
     locals_size.push(0);
@@ -62,6 +62,7 @@ public:
       case EK_AST_SUB: setflag(n->x.var.scoperef, F_OP_SUB); break;
       case EK_AST_MUL: setflag(n->x.var.scoperef, F_OP_MUL); break;
       case EK_AST_DIV: setflag(n->x.var.scoperef, F_OP_DIV); break;
+      case EK_AST_LESS: setflag(n->x.var.scoperef, F_OP_INEQ); break;
       case EK_AST_CALL: // if we're left, we're calling n, else n is the argument of a call
 	if (left) setflag(n->x.var.scoperef, F_OP_CALL); 
 	else      setflag(n->x.var.scoperef, F_ARG_CALL); break;
@@ -138,7 +139,7 @@ void __main(anp root){
 
   ek_parse_print_ast(root);
 
-  FlagPass first_pass(root);
+  FirstPass first_pass(root);
   first_pass(true);
 
   *btsp++ = -1;
