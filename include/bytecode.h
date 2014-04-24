@@ -13,14 +13,17 @@ enum ByteCodeOps {
   POP_INTO_LOCAL,
   POP_INTO_GLOBAL,
   ADD,
-  LESSTHAN, // 40
+  SUB, // 40
+  DIV,
+  MUL,
+  LESSTHAN, 
   CALL,
   RETURN, 
   NEW_FRAME, 
   LABEL,
   BRANCH,
   CONDBRANCH,
-  GETATTR,
+  GETATTR, // 50
 };
 
 #define NONE_CST_VALUE 42

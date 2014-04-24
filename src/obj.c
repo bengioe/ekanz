@@ -48,6 +48,7 @@ ek_type* ek_type_new(){
   t->map = 0;
   t->nentries = 0;
   t->entry = NULL;
+  return t;
 }
 
 

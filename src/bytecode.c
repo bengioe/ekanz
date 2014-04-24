@@ -18,6 +18,7 @@ static strdict_node* strdict_new(){
   p->key = NULL;
   p->value = 0;
   p->next = NULL;
+  return p;
 }
 
 static int64_t strdict_getn(strdict_node* d, char* k, int64_t len, int64_t* to){
@@ -71,6 +72,8 @@ static void scope_setn(scope_t* s, char* k, int len, int64_t v){
 
 //////////////////////////
 
+static void bc_byte(bcp bc, uint8_t b){
+  *bc->data++ = b;}
 static void bc_push(bcp bc, int64_t v, ek_type* t){ 
   *bc->data++ = PUSH; 
   *(int64_t*)bc->data = v; bc->data += 8;
@@ -95,6 +98,11 @@ static void bc_newframe(bcp bc){
   *bc->data++ = NEW_FRAME;}
 static void bc_return(bcp bc, int32_t n){
   *bc->data++ = RETURN; *(int32_t*)bc->data = n; bc->data += 4;}
+static void bc_getattr(bcp bc, char* s, int64_t l){
+  *bc->data++ = GETATTR;
+  *(char**)bc->data = s; bc->data += sizeof(char*);
+  *(int32_t*)bc->data = l; bc->data += 4;}
+
 static int64_t bc_genlabel(bcp bc){
   static int64_t n = 0;
   return n++;}
@@ -125,10 +133,6 @@ static void bc_setmarker(bcp bc, int64_t marker, int64_t label){
 static void bc_setcondmarker(bcp bc, int64_t marker, int64_t iflabel, int64_t elselabel){
   *(int32_t*)marker = (int32_t)elselabel;
   *(int32_t*)(marker-8) = (int32_t)iflabel;}
-static void bc_getattr(bcp bc, char* s, int64_t l){
-  *bc->data++ = GETATTR;
-  *(char**)bc->data = s; bc->data += sizeof(char*);
-  *(int32_t*)bc->data = l; bc->data += 4;}
 //////////////////////////
 
 
@@ -376,18 +380,24 @@ static void bc_expression(bcp bc, astnp node, scope_t* globals, scope_t* locals)
     //printf("push from %ld\n",posx);
     break;
   }
+
   case EK_AST_ADD:
-    bc_expression(bc, node->left, globals, locals);
-    bc_expression(bc, node->right, globals, locals);
-    bc_add(bc);
-    //printf("add\n");
-    break;
+    bc_expression(bc, node->left, globals, locals); bc_expression(bc, node->right, globals, locals);
+    bc_add(bc); break;
+  case EK_AST_SUB:
+    bc_expression(bc, node->left, globals, locals); bc_expression(bc, node->right, globals, locals);
+    bc_byte(bc, SUB); break;
+  case EK_AST_MUL:
+    bc_expression(bc, node->left, globals, locals); bc_expression(bc, node->right, globals, locals);
+    bc_byte(bc, MUL); break;
+  case EK_AST_DIV:
+    bc_expression(bc, node->left, globals, locals); bc_expression(bc, node->right, globals, locals);
+    bc_byte(bc, DIV); break;
+
   case EK_AST_LESS:
-    bc_expression(bc, node->left, globals, locals);
-    bc_expression(bc, node->right, globals, locals);
-    bc_lessthan(bc);
-    //printf("add\n");
-    break;
+    bc_expression(bc, node->left, globals, locals); bc_expression(bc, node->right, globals, locals);
+    bc_lessthan(bc); break;
+
   case EK_AST_CALL:
     // evaluate arguments
     bc_expression(bc, node->right, globals, locals);
@@ -487,6 +497,12 @@ void ek_bc_print(ek_bytecode* bc){
       printf("pop into global %d\n",*(int*)p); p+=4; break;
     case ADD:
       printf("add\n"); break;
+    case SUB:
+      printf("sub\n"); break;
+    case MUL:
+      printf("mul\n"); break;
+    case DIV:
+      printf("DIV\n"); break;
     case LESSTHAN:
       printf("lessthan\n"); break;
     case CALL:

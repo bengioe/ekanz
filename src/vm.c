@@ -4,7 +4,7 @@
 
 #define max(a,b) (a > b ? a : b)
 
-#define COLLECT_FLAG 1
+#define COLLECT_FLAG 0
 #if COLLECT_FLAG
 #include "opt.c"
 #endif
@@ -134,7 +134,9 @@ void ek_vm_run(ek_bytecode* bc){
       int32_t v = *(int32_t*)pc; pc+=4;
       vsp -= v;
       tsp -= v;
+#if COLLECT_FLAG
       vfsp -= v;
+#endif
       break;}
 
     case ADD:{
@@ -154,6 +156,69 @@ void ek_vm_run(ek_bytecode* bc){
 	*tsp++ = ek_IntType;
       }else{
 	error_str = "trying to add two non-numbers";
+	goto fatalerror;
+      }
+      break;}
+
+    case SUB:{
+      int64_t a = *--vsp;
+      int64_t b = *--vsp;
+      ek_type* at = *--tsp;
+      ek_type* bt = *--tsp;
+#if COLLECT_FLAG
+      setvf(*--vfsp, F_OP_SUB);
+      setvf(  *vfsp, F_TYPE_INT);
+      setvf(*--vfsp, F_OP_SUB);
+      setvf(  *vfsp, F_TYPE_INT);
+      setvf(*vfsp++, F_TYPE_INT);
+#endif
+      if (at == bt && bt == ek_IntType){
+	*vsp++ = b - a;
+	*tsp++ = ek_IntType;
+      }else{
+	error_str = "trying to subtract two non-numbers";
+	goto fatalerror;
+      }
+      break;}
+
+    case MUL:{
+      int64_t a = *--vsp;
+      int64_t b = *--vsp;
+      ek_type* at = *--tsp;
+      ek_type* bt = *--tsp;
+#if COLLECT_FLAG
+      setvf(*--vfsp, F_OP_MUL);
+      setvf(  *vfsp, F_TYPE_INT);
+      setvf(*--vfsp, F_OP_MUL);
+      setvf(  *vfsp, F_TYPE_INT);
+      setvf(*vfsp++, F_TYPE_INT);
+#endif
+      if (at == bt && bt == ek_IntType){
+	*vsp++ = a * b;
+	*tsp++ = ek_IntType;
+      }else{
+	error_str = "trying to multiply two non-numbers";
+	goto fatalerror;
+      }
+      break;}
+
+    case DIV:{
+      int64_t a = *--vsp;
+      int64_t b = *--vsp;
+      ek_type* at = *--tsp;
+      ek_type* bt = *--tsp;
+#if COLLECT_FLAG
+      setvf(*--vfsp, F_OP_DIV);
+      setvf(  *vfsp, F_TYPE_INT);
+      setvf(*--vfsp, F_OP_DIV);
+      setvf(  *vfsp, F_TYPE_INT);
+      setvf(*vfsp++, F_TYPE_INT);
+#endif
+      if (at == bt && bt == ek_IntType){
+	*vsp++ = b / a;
+	*tsp++ = ek_IntType;
+      }else{
+	error_str = "trying to multiply two non-numbers";
 	goto fatalerror;
       }
       break;}
@@ -299,7 +364,8 @@ void ek_vm_run(ek_bytecode* bc){
   if (1){
   breakout:
     printf("end (%d on stack)\n", vstack[0]);
-    printf("%d varflags\n", nvarflags);
+#if COLLECT_FLAG
+    printf("%d varflags (%d max)\n", nvarflags, F_MAX-1);
     int i=0,j;
     char* fl[] = {"add","sub","mul","div",
 		  "mod","bitw","attr","indx",
@@ -318,6 +384,7 @@ void ek_vm_run(ek_bytecode* bc){
       }
       puts("");
     }
+#endif
   } else if (1){
  fatalerror:
     printf("Fatal error %s\n", error_str);

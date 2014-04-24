@@ -9,6 +9,8 @@
 #include "bytecode.h"
 #include "vm.h"
 #include "obj.h"
+#include "opt.h"
+
 //#include "cfg.h"
 
 char* ek_raw_readfile(char* filename);

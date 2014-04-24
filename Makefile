@@ -3,7 +3,7 @@
 
 
 default:
-	echo "Please specify a target!"
+	@echo "Please specify a target!"
 
 build:
 	$(MAKE) -C src

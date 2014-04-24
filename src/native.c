@@ -28,7 +28,7 @@ int64_t ek_native_compile_bc(ek_bytecode* bc){
       *(int32_t*)code = v; code += 4;
       break;
     }
-    case PUSH_FROM:{
+    case PUSH_LOCAL:{
       // mov v*8(%rdx), %rax
       int32_t v = *(int32_t*)p;
       p+=4;
@@ -36,7 +36,7 @@ int64_t ek_native_compile_bc(ek_bytecode* bc){
       *code++ = (v-1) << 3;
       // push %rax
       *code++ = 0x50; break;}
-    case POP_INTO:{
+    case POP_INTO_LOCAL:{
       // pop %rax
       *code++ = 0x58;
       // mov %rax, v*8(%rdx)

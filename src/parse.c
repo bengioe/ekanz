@@ -204,21 +204,23 @@ const char* ek_ast_typenames[] = {
   "int",
   "varname",
   "number",
-  0,0,0,0, // 264
-  0,0,0,0, 0,0,0,0, // 24(272)
-  "call",
+  "call", // 260
+  "getitem",
   "+",
+  "-",
+  "<",
+  "*",
+  "/",
   ".",
   "if",
   "ifnode",
-  "else",
+  "else", // 270
   "elif",
-  "assign", // 280
+  "assign", 
   "block_element", 
   "def",
   "return",
   "while",
-  "<",
   "invalid_",
 };
 
@@ -233,9 +235,9 @@ static void _astp(nodep n, int level){
     return;
   }
   if (n->type >= 256){
-    printf("node %s", ek_ast_typenames[n->type-248]);
+    printf("| %s", ek_ast_typenames[n->type-248]);
   }else{
-    printf("node %c",n->type);
+    printf("| %c",n->type);
   }
   if (n->tokstr){
     printf(" '%.*s'",n->toklen, n->tokstr);
@@ -298,9 +300,12 @@ static nodep p_assignment(parse_state*);
 static nodep p_expression(parse_state*);
 /* expression : addition */
 static nodep p_addition(parse_state*);
-/* addition : power '+' addition | power*/
+/* addition : multiplication ('+' | '-') addition | power*/
+static nodep p_multiplication(parse_state*);
+/* multiplication : power (('*' | '/') power)*    
+   -- note the ((m|d) p)* required for left assoc  */
 static nodep p_power(parse_state*);
-/* power: value trailer* */
+/* power: value trailer*    */
 static nodep p_trailer(parse_state*);
 /* trailer :  '(' expression ')' | '.' VARIABLE */
 static nodep p_value(parse_state*);
@@ -580,7 +585,7 @@ static nodep p_expression(parse_state* S){
 
 static nodep p_addition(parse_state* S){
   nodep root;
-  if ((root = p_power(S)) == NULL){
+  if ((root = p_multiplication(S)) == NULL){
     //printf("Error, p_call returned NULL in p_add\n");
     return NULL;
   }
@@ -589,10 +594,57 @@ static nodep p_addition(parse_state* S){
     nodep left = root;
     root = new_nodeplrt(left, right, EK_AST_ADD);
   }
+  else if (P_accept(S,'-')){
+    nodep right = p_addition(S);
+    nodep left = root;
+    root = new_nodeplrt(left, right, EK_AST_SUB);
+  }
   else if (P_accept(S,'<')){
     nodep right = p_addition(S);
     nodep left = root;
     root = new_nodeplrt(left, right, EK_AST_LESS);
+  }
+  /*
+  else if (P_accept(S,'>')){
+    nodep right = p_addition(S);
+    nodep left = root;
+    root = new_nodeplrt(left, right, EK_AST_LESS);
+    }*/
+  return root;
+}
+
+static nodep p_multiplication(parse_state* S){
+  nodep root;
+  if ((root = p_power(S)) == NULL){
+    //printf("Error, p_call returned NULL in p_add\n");
+    return NULL;
+  }
+  if (0){
+    if (P_accept(S,'*')){
+      nodep right = p_multiplication(S);
+      nodep left = root;
+      root = new_nodeplrt(left, right, EK_AST_MUL);
+    }
+    else if (P_accept(S,'/')){
+      nodep right = p_multiplication(S);
+      nodep left = root;
+      root = new_nodeplrt(left, right, EK_AST_DIV);
+    }
+  }
+  while (1){
+    if (P_accept(S,'*')){
+      nodep left = root;
+      nodep right = p_power(S);
+      root = new_nodeplrt(left, right, EK_AST_MUL);
+    }
+    else if (P_accept(S,'/')){
+      nodep left = root;
+      nodep right = p_power(S);
+      root = new_nodeplrt(left, right, EK_AST_DIV);
+    }
+    else{
+      break;
+    }
   }
   return root;
 }
@@ -613,6 +665,7 @@ static nodep p_power(parse_state* S){
 static nodep p_trailer(parse_state* S){
   nodep root = NULL;
   if (P_accept(S, '(')){
+    // here we are parsing a function call!
     //printf("Got ( %.*s\n",3,S->strptr);
     nodep right = p_expression(S);
     root = new_nodeplrt(NULL, right,EK_AST_CALL);
@@ -633,7 +686,15 @@ static nodep p_trailer(parse_state* S){
 }
 
 static nodep p_value(parse_state* S){
-  if (P_accept(S, '"')){
+  if (P_accept(S, '(')){
+    // here we are parsing an (expression)
+    nodep root = p_expression(S);
+    if (!P_accept(S, ')')){
+      printf("Error, missing left ) in expression\n");
+    }
+    return root;
+  }
+  else if (P_accept(S, '"')){
     //printf("Saw strstart\n");
     nodep str = new_nodep();
     char* s = S->strptr;
