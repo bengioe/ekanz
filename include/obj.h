@@ -1,5 +1,5 @@
-
-
+#ifndef OBJ_H
+#define OBJ_H
 /*
   What is a type?
   
@@ -52,3 +52,5 @@ extern ek_type* ek_CFuncType;
 extern ek_type* ek_StrType;
 
 extern ekop ek_None;
+
+#endif

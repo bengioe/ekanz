@@ -1,6 +1,8 @@
 #ifndef EK_PARSE_H
 #define EK_PARSE_H
 
+#include "obj.h"
+
 enum AstNodeTypes{
 
   EK_AST_CSTSTR=256,
@@ -38,6 +40,7 @@ typedef struct ek_ast_node{
 			 // unique across all scopes (for the same
 			 // variable)
       uint32_t scopepos; // position on the local stack
+      ek_type* predicted_type;
     } var;
     struct jit{
       char* block;
