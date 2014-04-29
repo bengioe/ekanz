@@ -34,17 +34,19 @@ typedef struct ek_ast_node{
   int32_t type;
   struct ek_ast_node* left;
   struct ek_ast_node* right;
+  uint16_t local_scope_size;
+  uint8_t isCompiledUnit;
   union x{
     struct var{
       uint32_t scoperef; // scope reference id of this node, should be
 			 // unique across all scopes (for the same
 			 // variable)
-      uint32_t scopepos; // position on the local stack
+      int32_t scopepos; // position on the local stack (negative is for global scope)
       ek_type* predicted_type;
     } var;
     struct jit{
+      uint8_t isLeafUnit; // a node that has no BLOCK_NODE children
       char* block;
-      void* typemap;
     } jit;
   } x;
 } ek_ast_node;

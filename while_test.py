@@ -1,14 +1,13 @@
 
 
-j = 0
-
-while j < 10000:
+j = 2
+k = 82
+while j < 1000:
     i = 0
     x = 1
     y = 2
-    while i < 1000:
-        x = x + y * i
+    while i < 20000:
+        x = x + 5 + i * y / k
         i = i + 1
     j = j + 1
-
-print(x)
+print(x - 100)
