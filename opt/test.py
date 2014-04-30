@@ -1,20 +1,6 @@
 import time
 import numpy
 
-"""
-
-A -> B -> C
-       -> D
-
-P(A) = sum_BCD P(A)P(B|A)P(C|B)P(D|B)
-     = P(A) sum_B P(B|A) sum_C P(C|B) sum_D P(D|B)
-
-"""
-def combine(nodes,ndim=2):
-    
-    if len(nodes) == 1:
-        return 
-
 
 class Network:
     def __init__(self):
@@ -122,15 +108,6 @@ class Node:
         return "<"+self.name+">"
     def __repr__(self):
         return str(self)
-
-# 1 observed true, 0 observed false, -1 unobserved
-
-data = numpy.array([[1,0,1],
-                    [1,1,1],
-                    [1,0,1],
-                    [1,1,0],
-                    [0,0,0],
-                    [0,1,0]])
 
 if 1:
     net = Network()

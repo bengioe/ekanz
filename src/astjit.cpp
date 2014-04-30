@@ -161,6 +161,14 @@ public:
 
 };
 
+#define P_FLAG 0x50
+#define C_FLAG 0x40
+#define X_FLAG 0x55
+#define p_flagi(n) n->x.var.\
+  predicted_type = ek_IntType;
+#define p_flagf(n) n->x.var.\
+  predicted_type = ek_FuncType;
+
 class TreePasses{
 public:
 
@@ -311,14 +319,13 @@ public:
       case EK_AST_CSTSTR:
 	break;
       case EK_AST_VARNAME:{
-	// in reality here we would use a model to predict the flags (incl. type)
 	switch(parent->type){
 	case EK_AST_ADD: 
 	case EK_AST_SUB:
 	case EK_AST_MUL:
 	case EK_AST_DIV:
-	case EK_AST_LESS: n->x.var.predicted_type = ek_IntType; break;
-	case EK_AST_CALL: // if we're left, we're calling n, else n is the argument of a call
+	case EK_AST_LESS: p_flagi(n); break;
+	case EK_AST_CALL: 
 	  if (left) n->x.var.predicted_type = ek_FuncType;
 	  else      n->x.var.predicted_type = ek_IntType; break;
 	}
@@ -587,9 +594,9 @@ void __main(anp root){
   tp.firstPass(true);
   tp.predictTypes();
   tp.printAst();
-  //tp.compileUnits();
+  tp.compileUnits();
   double t1 = getTimeNow();
-  printf("JIT took %fms\n",t1-t0);
+  printf("JIT took %fms\n",(t1-t0)*1000);
   tp.run(vstack, vsp);
 
   *btsp++ = -1;
