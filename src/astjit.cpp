@@ -403,6 +403,12 @@ public:
 
     std::function<void(anp)> exec = [&] (anp n){    
       //for (int i=0;i<10;i++){printf("%d ", vstack[-i-1]);}puts("");
+      if (!n->isCompiledUnit
+	  && n->x.jit.isLeafUnit 
+	  && n->type != EK_AST_VARNAME
+	  && n->type != EK_AST_CSTINT){
+	compileUnit(n);
+      } 
       if (n->isCompiledUnit){
 	//printf("%p %d\n",vsp,*(vsp-1),vstack);
 	int64_t* (*f)(int64_t*,int64_t*) =(int64_t* (*)(int64_t*,int64_t*)) n->x.jit.block;
@@ -554,6 +560,7 @@ public:
 
 };
 
+extern "C" {double getTimeNow();};
 void __main(anp root){
   // value
   int64_t* vstack_start = (int64_t*)malloc(1024*1024);
@@ -575,11 +582,14 @@ void __main(anp root){
 
   //ek_parse_print_ast(root);
 
+  double t0 = getTimeNow();
   TreePasses tp(root);
   tp.firstPass(true);
   tp.predictTypes();
-  //tp.printAst();
-  tp.compileUnits();
+  tp.printAst();
+  //tp.compileUnits();
+  double t1 = getTimeNow();
+  printf("JIT took %fms\n",t1-t0);
   tp.run(vstack, vsp);
 
   *btsp++ = -1;
@@ -590,6 +600,7 @@ void __main(anp root){
 }
 
 extern "C"{
+
 
 void ek_ast_jitandrun(anp root){
   printf("Entering JIT\n");
