@@ -1,6 +1,7 @@
 #include <Ekanz.h>
 
 #include <sys/mman.h>
+#include <stdio.h>
 
 int64_t ek_native_compile_bc(ek_bytecode* bc){
   printf("\ncompiling to x64\n\n");

@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #define astnp ek_ast_node*
 #define bcp ek_bytecode*
@@ -156,9 +157,9 @@ static void _write(int64_t arg, ek_type* argt, int64_t* rval, ek_type** rtype){
     printf("%ld\n",arg);
   }else if (argt == ek_StrType){
     ekop o = (ekop)arg;
-    char* p = *((char**)o->data + ek_StrType->nentries);
-    uint64_t l = *((uint64_t*)o->data + ek_StrType->nentries + 1);
-    printf("%.*s\n",l,p);
+    char* p = (char*)ek_obj_getextra(o,0);//*((char**)o->data + ek_StrType->nentries);
+    unsigned int l = (unsigned int)ek_obj_getextra(o,1);//*((uint64_t*)o->data + ek_StrType->nentries + 1);
+    printf("str: %.*s %p %p\n",l,p,o,arg);
   }else{
     printf("<%ld %p %p %p>\n", arg, argt, rval, rtype);
   }
@@ -237,7 +238,7 @@ static void find_and_push_locals(bcp bc, astnp root, scope_t* globals, scope_t* 
 
 static void bc_block(bcp bc, astnp node, scope_t* globals, scope_t* locals);
 static void bc_expression(bcp bc, astnp node, scope_t* globals, scope_t* locals);
-static ek_bytecode* bc_function(bcp bc, astnp root, scope_t* globals, scope_t* locals);
+static void bc_function(bcp bc, astnp root, scope_t* globals, scope_t* locals);
 
 
 static void bc_block(bcp bc, astnp node, scope_t* globals, scope_t* locals){
@@ -266,7 +267,12 @@ static void bc_block(bcp bc, astnp node, scope_t* globals, scope_t* locals){
       }
     case EK_AST_CALL:
       bc_expression(bc, decl, globals, locals);
-      bc_popn(bc, 1); // pop the unused result of the call (remember we are at bc_block level)
+      bc_popn(bc, 1); // pop the unused result of the call (remember
+		      // we are at bc_block level, so the call looks
+		      // like f(...) rather than x=f() so the return
+		      // value that was pushed on the stack must be
+		      // popped)
+      
       break;
     case EK_AST_IF:{
       // evaluate the condition
@@ -310,10 +316,17 @@ static void bc_block(bcp bc, astnp node, scope_t* globals, scope_t* locals){
       break;
     }
     case EK_AST_DEF:{
+      // create new code blob
       bcp defbc = create_next_blob(bc);
       scope_t* scope = scope_new();
-      int64_t pos = scope->frame_size++;
-      scope_set(scope, decl->left->right, pos);
+      // set the arguments to be ordered in the scope
+      // which are in a list of param
+      astnp param = decl->left->right;
+      while (param != NULL){
+	int64_t pos = scope->frame_size++;
+	scope_set(scope, param->left, pos);
+	param = param->right;
+      }
       bc_function(defbc, decl->right, globals, scope);
       astnp l = decl->left->left;
       int64_t posg = -1, posl = -1;
@@ -356,6 +369,7 @@ static void bc_expression(bcp bc, astnp node, scope_t* globals, scope_t* locals)
     unsigned long* sl = (unsigned long*)v->data + ek_StrType->nentries + 1;
     *sp = node->tokstr;
     *sl = node->toklen;
+    printf("strdef: %.*s %p\n",*sl,*sp,v);
     bc_push(bc, v, ek_StrType);
     break;
   }
@@ -400,6 +414,7 @@ static void bc_expression(bcp bc, astnp node, scope_t* globals, scope_t* locals)
 
   case EK_AST_CALL:
     // evaluate arguments
+    // todo: allow calling a function with multiple arguments
     bc_expression(bc, node->right, globals, locals);
     // then function object
     bc_expression(bc, node->left, globals, locals);
@@ -419,7 +434,7 @@ static void bc_expression(bcp bc, astnp node, scope_t* globals, scope_t* locals)
   }
 }
 
-static ek_bytecode* bc_function(bcp bc, astnp root, scope_t* globals, scope_t* locals){
+static void bc_function(bcp bc, astnp root, scope_t* globals, scope_t* locals){
   int64_t start = bc_genlabel(bc);
   bc_label(bc, &start);
   bc_newframe(bc);
@@ -482,7 +497,7 @@ void ek_bc_print(ek_bytecode* bc){
     printf("%p:   ",p);
     switch(*p++){
     case PUSH:
-      printf("push %ld %p\n",*(int64_t*)p,*(int64_t*)(p+8)); p+=16; break;
+      printf("push %p %p\n",*(int64_t*)p,*(int64_t*)(p+8)); p+=16; break;
     case POP:
       printf("pop\n"); break;
     case POPN:

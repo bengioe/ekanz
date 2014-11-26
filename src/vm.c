@@ -248,19 +248,10 @@ void ek_vm_run(ek_bytecode* bc){
       // a is the function pointer
       int64_t a = *--vsp;
       ek_type* at = *--tsp;
-#if COLLECT_FLAG
-      setvf(*--vfsp, F_OP_CALL);
-      setvf(  *vfsp, F_TYPE_OBJ);
-      setvf(*(vfsp-1), F_ARG_CALL);
-#endif
       if (at == ek_FuncType){
 	*btsp++ = (int64_t)pc;
 	*btsp++ = (int64_t)tframep;
 	*btsp++ = (int64_t)vframep;
-#if COLLECT_FLAG
-	*btsp++ = (int64_t)vfframep;
-	vfframep = vfsp-1;
-#endif
 	vframep = vsp-1;
 	tframep = tsp-1;
 	//printf("call %p %d\n", a, vframep-vstack);
@@ -268,18 +259,15 @@ void ek_vm_run(ek_bytecode* bc){
       } else if (at == ek_CFuncType){
 	int64_t rvalue = 0;
 	ek_type* rtype = ek_NoneType;
-	//printf("C CALL %p\n", a);
 	void (*f)(int64_t,ek_type*,int64_t*,ek_type**) = 
 	 (void(*)(int64_t,ek_type*,int64_t*,ek_type**))
 	  ek_obj_getextra((ekop)a, 0);
 	int64_t arg = *--vsp;
 	ek_type* argtype = *--tsp;
+	printf("C call %p\n",arg);
 	f(arg,argtype,&rvalue,&rtype);
 	*vsp++ = rvalue;
 	*tsp++ = rtype;
-#if COLLECT_FLAG
-	setvf(*vfsp++, F_FL_RESULT);
-#endif
       } else{
 	error_str = "trying to call a non-function";
 	goto fatalerror;
@@ -363,7 +351,7 @@ void ek_vm_run(ek_bytecode* bc){
 
   if (1){
   breakout:
-    printf("end (%d on stack)\n", vstack[0]);
+    printf("Exiting VM (%d on stack)\n", vstack[0]);
 #if COLLECT_FLAG
     printf("%d varflags (%d max)\n", nvarflags, F_MAX-1);
     int i=0,j;

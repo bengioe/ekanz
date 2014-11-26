@@ -221,6 +221,7 @@ const char* ek_ast_typenames[] = {
   "def",
   "return",
   "while",
+  "argument",
   "invalid_",
 };
 
@@ -261,21 +262,6 @@ void ek_parse_print_ast(nodep root){
 /**
    The grammar for Ekanz is implicitly inscribed in this code, and
    explicitely (as much as possible) right here: */
-/* block: declaration*
-   declaration : ifstmt | funcdef | assignment | retstmt
-   ifstmt : ('if' expression ':' '\n' block)
-          | ('if' expression ':' '\n' block 
-	     (('elif'|'else' 'if') expression ':' '\n' block)* 
-	     (else: '\n' block)? ) 
-   assignment : expression/A '=' expression | expression
-       assert !isLitteral(A)
-   expression : addition 
-   addition : meta_attribute '+' addition | meta_attribute
-   meta_attribute: call '.' VARIABLE | call 
-   call : attribute '(' call_arglist ')' | attribute
-   attribute: value '.' VARIABLE | value
-   value : VARIABLE | NUM_CST | STR_CST 
-*/
 
 
 static nodep p_block(parse_state*);
@@ -284,6 +270,8 @@ static nodep p_declaration(parse_state*);
 /* declaration : funcdef | ifstmt | assignment | whilestmt | retstmt*/
 static nodep p_funcdef(parse_state*);
 /* funcdef : 'def' VARIABLE parameters ':' block */
+static nodep p_parameters(parse_state*);
+/* parameters: VARIABLE (, VARIABLE)*  */
 static nodep p_whilestmt(parse_state*);
 /* whilestmt: 'while expression : '\n' block */
 static nodep p_ifstmt(parse_state*);
@@ -412,7 +400,7 @@ static nodep p_funcdef(parse_state* S){
   /* 
      def nodes are structured as follows
      DEF L-> DEF L-> name
-                 R-> argname // here should be a list of arguments
+                 R-> parameters
 	 R-> block
   */
   nodep root = NULL;
@@ -424,7 +412,7 @@ static nodep p_funcdef(parse_state* S){
     if (!P_accept(S, '(')){
       parse_error(S, "Expected parenthesis after 'def ...'");
     }
-    nodep argname = p_VARIABLE(S);
+    nodep args = p_parameters(S);
     if (!P_accept(S, ')')){
       parse_error(S, "Expected closing parenthesis after 'def ...'");
     }
@@ -435,12 +423,41 @@ static nodep p_funcdef(parse_state* S){
       parse_error(S, "Expected newline after colon ':'");
     }
     nodep block = p_block(S);
-    root = new_nodeplrt(new_nodeplrt(name, argname, EK_AST_DEF),
+    root = new_nodeplrt(new_nodeplrt(name, args, EK_AST_DEF),
 			block,
 			EK_AST_DEF);
   }
   return root;
 }
+
+static nodep p_parameters(parse_state* S){
+  /*
+    parameter nodes are:
+    PARAM L-> VAR
+          R-> parameters (or NULL)
+   */
+  nodep root = NULL;
+  nodep arg = NULL;
+  nodep n = NULL;
+  if ((arg = p_VARIABLE(S)) != NULL){
+    root = new_nodeplrt(arg,
+		       NULL,
+		       EK_AST_PARAM);
+    arg = root;
+    while (P_accept(S, ',')){
+      n = p_VARIABLE(S);
+      if (n == NULL){
+	parse_error(S, "Expected variable name after comma '(...,'");
+      }
+      arg->right = new_nodeplrt(n,
+				NULL,
+				EK_AST_PARAM);
+      arg = arg->right;
+    }
+  }
+  return root;
+}
+
 
 static nodep p_whilestmt(parse_state* S){
   /* 

@@ -26,6 +26,7 @@ enum AstNodeTypes{
   EK_AST_DEF,
   EK_AST_RETURN,
   EK_AST_WHILE,
+  EK_AST_PARAM,
 };
 
 typedef struct ek_ast_node{

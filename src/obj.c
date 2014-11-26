@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -39,6 +40,7 @@ void ek_init_type(){
     ek_StrType = ek_type_new();
     ek_StrType = ek_type_derive(ek_StrType, "__str__", 7);
     ek_StrType->extra_space = sizeof(char*) + sizeof(unsigned long);
+    // todo: free types here that are derived
   }
 }
 
@@ -168,10 +170,11 @@ ekop ek_type_instanciate(ek_type* t){
 
 
 void ek_obj_setextra(ekop o, uint64_t pos, ekop v){
-  *((ekop*)o->data + o->type->nentries + pos) = v;
+  *(((ekop*)o->data) + o->type->nentries + pos) = v;
 }
+
 ekop ek_obj_getextra(ekop o, uint64_t pos){
-  return *((ekop*)o->data + o->type->nentries + pos);
+  return *(((ekop*)o->data) + o->type->nentries + pos);
 }
 
 void ek_obj_setattr_str(ekop o, char* s, ekop v){
